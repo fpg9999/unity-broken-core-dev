@@ -1,13 +1,15 @@
-"""Regenerate the CJK glyph block inside main-battle-ui-draft-v2.lua.
+"""Regenerate the CJK glyph block inside the main-battle-ui-draft-v*.lua scripts.
 
 Aseprite's Lua API cannot draw text, so every non-ASCII character that appears
 in a string literal of the draft script is rasterised here (WenQuanYi Micro Hei,
 no antialiasing) and written back between the BEGIN/END GLYPHS markers.
 
 Usage (any Python with Pillow):
-    python ArtSrc/aseprite/tools/gen_glyphs.py
+    python ArtSrc/aseprite/tools/gen_glyphs.py            # every draft script
+    python ArtSrc/aseprite/tools/gen_glyphs.py path.lua   # just this one
 """
 
+import glob
 import os
 import re
 import sys
@@ -15,7 +17,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(HERE, "..", "main-battle-ui-draft-v2.lua")
+SCRIPTS = sorted(glob.glob(os.path.join(HERE, "..", "main-battle-ui-draft-v*.lua")))
 FONT = "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
 SIZES = (12, 16)
 BEGIN, END = "-- BEGIN GLYPHS", "-- END GLYPHS"
@@ -88,19 +90,24 @@ def lua_block(chars: list[str]) -> str:
     return "\n".join(lines)
 
 
-def main() -> int:
-    with open(SCRIPT, encoding="utf-8") as fh:
+def regen(script: str) -> bool:
+    with open(script, encoding="utf-8") as fh:
         src = fh.read()
     if BEGIN not in src or END not in src:
-        print("glyph markers missing", file=sys.stderr)
-        return 1
+        print(f"glyph markers missing in {script}", file=sys.stderr)
+        return False
     chars = used_chars(src)
     head = src.split(BEGIN)[0]
     tail = src.split(END)[-1]
-    with open(SCRIPT, "w", encoding="utf-8") as fh:
+    with open(script, "w", encoding="utf-8") as fh:
         fh.write(head + lua_block(chars) + tail)
-    print(f"{len(chars)} glyphs x {len(SIZES)} sizes -> {os.path.relpath(SCRIPT)}")
-    return 0
+    print(f"{len(chars)} glyphs x {len(SIZES)} sizes -> {os.path.relpath(script)}")
+    return True
+
+
+def main() -> int:
+    scripts = sys.argv[1:] or SCRIPTS
+    return 0 if all([regen(s) for s in scripts]) else 1
 
 
 if __name__ == "__main__":
